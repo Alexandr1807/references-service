@@ -10,6 +10,8 @@ use App\Models\TreasuryAccount;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Maatwebsite\Excel\Facades\Excel;
+use Rap2hpoutre\FastExcel\FastExcel;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TreasuryAccountController extends Controller
 {
@@ -140,5 +142,44 @@ class TreasuryAccountController extends Controller
         Excel::import(new TreasuryAccountsImport($userId), $path);
 
         return $this->success([], 'Импорт Счетов казначейства запущен, проверьте очередь');
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $fileName = 'treasury-accounts-'.now()->format('Ymd_His').'.xlsx';
+
+        $generator = function() use ($request) {
+            $query = TreasuryAccount::query();
+
+            foreach (['account','mfo','name','department','currency'] as $f) {
+                if ($request->filled($f)) {
+                    $query->where($f, $request->input($f));
+                }
+            }
+            if ($request->filled('search')) {
+                $s = $request->input('search');
+                $query->where(function($q) use($s) {
+                    $q->where('account','ILIKE',"%{$s}%")
+                        ->orWhere('name','ILIKE',"%{$s}%");
+                });
+            }
+
+            foreach ($query->orderBy('account')->cursor() as $ta) {
+                yield [
+                    'Account'      => $ta->account,
+                    'MFO'          => $ta->mfo,
+                    'Name'         => $ta->name,
+                    'Department'   => $ta->department,
+                    'Currency'     => $ta->currency,
+                    'Created By'   => optional($ta->creator)->name,
+                    'Updated By'   => optional($ta->editor)->name,
+                    'Created At'   => $ta->created_at->toDateTimeString(),
+                    'Updated At'   => $ta->updated_at->toDateTimeString(),
+                ];
+            }
+        };
+
+        return (new FastExcel($generator()))
+            ->download($fileName);
     }
 }

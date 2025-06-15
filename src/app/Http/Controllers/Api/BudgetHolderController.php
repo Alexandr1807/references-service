@@ -11,6 +11,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
+use Rap2hpoutre\FastExcel\FastExcel;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class BudgetHolderController extends Controller
 {
@@ -125,6 +127,47 @@ class BudgetHolderController extends Controller
 
         Log::info('Import finished');
         return $this->success([], 'Импорт бюджетополучателей запущен, проверьте очередь');
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $fileName = 'budget-holders-'.now()->format('Ymd_His').'.xlsx';
+
+        $rows = function() use ($request) {
+            $query = BudgetHolder::query();
+
+            foreach (['tin','name','region','district','phone','responsible'] as $f) {
+                if ($request->filled($f)) {
+                    $query->where($f, $request->input($f));
+                }
+            }
+            if ($request->filled('search')) {
+                $s = $request->input('search');
+                $query->where(function($q) use ($s) {
+                    $q->where('tin','ILIKE',"%{$s}%")
+                        ->orWhere('name','ILIKE',"%{$s}%")
+                        ->orWhere('region','ILIKE',"%{$s}%")
+                        ->orWhere('district','ILIKE',"%{$s}%")
+                        ->orWhere('phone','ILIKE',"%{$s}%")
+                        ->orWhere('responsible','ILIKE',"%{$s}%");
+                });
+            }
+
+            foreach ($query->orderBy('name')->cursor() as $bh) {
+                yield [
+                    'ИНН'           => $bh->tin,
+                    'Наименование'          => $bh->name,
+                    'Регион'        => $bh->region,
+                    'Район'      => $bh->district,
+                    'Адрес'       => $bh->address,
+                    'Телефон'         => $bh->phone,
+                    'Ответственный'   => $bh->responsible,
+                ];
+            }
+        };
+
+        return (new FastExcel($rows()))
+            ->download($fileName);
     }
 
 }

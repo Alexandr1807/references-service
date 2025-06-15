@@ -11,6 +11,8 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 use Maatwebsite\Excel\Facades\Excel;
+use Rap2hpoutre\FastExcel\FastExcel;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class SwiftCodeController extends Controller
 {
@@ -120,5 +122,45 @@ class SwiftCodeController extends Controller
         Excel::import(new SwiftCodesImport($userId), $path);
 
         return $this->success([], 'Импорт SWIFT-кодов запущен, проверьте очередь');
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $fileName = 'swift-codes-'.now()->format('Ymd_His').'.xlsx';
+
+        $generator = function() use ($request) {
+            $query = SwiftCode::query();
+
+            foreach (['country','bank_name','city'] as $f) {
+                if ($request->filled($f)) {
+                    $query->where($f, $request->input($f));
+                }
+            }
+
+            if ($request->filled('search')) {
+                $s = $request->input('search');
+                $query->where(function($q) use($s) {
+                    $q->where('swift_code', 'ILIKE', "%{$s}%")
+                        ->orWhere('bank_name', 'ILIKE', "%{$s}%");
+                });
+            }
+
+            foreach ($query->orderBy('bank_name')->cursor() as $sw) {
+                yield [
+                    'SWIFT Code'   => $sw->swift_code,
+                    'Bank Name'    => $sw->bank_name,
+                    'Country'      => $sw->country,
+                    'City'         => $sw->city,
+                    'Address'      => $sw->address,
+                    'Created By'   => optional($sw->creator)->name,
+                    'Updated By'   => optional($sw->editor)->name,
+                    'Created At'   => $sw->created_at->toDateTimeString(),
+                    'Updated At'   => $sw->updated_at->toDateTimeString(),
+                ];
+            }
+        };
+
+        return (new FastExcel($generator()))
+            ->download($fileName);
     }
 }

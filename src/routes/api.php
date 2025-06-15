@@ -20,15 +20,18 @@ Route::middleware('auth:api')->get('users', [UserController::class, 'index']);
 
 Route::middleware('auth:api')->group(function () {
     // SWIFT
-    Route::apiResource('swift-codes', SwiftCodeController::class);
     Route::post('swift-codes/import', [SwiftCodeController::class, 'import']);
+    Route::get('swift-codes/export', [SwiftCodeController::class, 'export']);
+    Route::apiResource('swift-codes', SwiftCodeController::class);
 
     // Бюджетополучатели
-    Route::apiResource('budget-holders', BudgetHolderController::class);
     Route::post('budget-holders/import', [BudgetHolderController::class, 'import']);
+    Route::get('budget-holders/export', [BudgetHolderController::class, 'export']);
+    Route::apiResource('budget-holders', BudgetHolderController::class);
 
     // Счета казначейства
-    Route::apiResource('treasury-accounts', TreasuryAccountController::class);
     Route::post('treasury-accounts/import', [TreasuryAccountController::class, 'import']);
+    Route::get('treasury-accounts/export', [TreasuryAccountController::class, 'export']);
+    Route::apiResource('treasury-accounts', TreasuryAccountController::class);
 });
 

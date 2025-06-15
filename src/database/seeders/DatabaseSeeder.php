@@ -22,8 +22,8 @@ class DatabaseSeeder extends Seeder
 //            'email' => 'test@example.com',
 //        ]);
 
-//        BudgetHolder::factory()->count(50)->create();
+        BudgetHolder::factory()->count(10000)->create();
 
-        TreasuryAccount::factory()->count(50)->create();
+        TreasuryAccount::factory()->count(10000)->create();
     }
 }
